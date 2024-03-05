@@ -36,7 +36,7 @@ def get_qemu_version() -> tuple:
     return version
 
 
-def test_firmware(fw_path: str, boot_drive_path: str, expected_string: str, timeout: int, rdrand: bool, fw_arch: str) -> bool:
+def test_firmware(fw_path: str, boot_drive_path: str, expected_string: str, timeout: int, rdrand: bool, fw_arch: str) -> tuple:
     """
     Run QEMU and check whether firmware can start given image
 
@@ -45,13 +45,14 @@ def test_firmware(fw_path: str, boot_drive_path: str, expected_string: str, time
     :param expected_string: The expected string we wait for during image run
     :param timeout: Timeout for image run
     :param rdrand: Run with rdrand support or not
-    :return the boolean result:
+    :return result tuple (bolean result, buffer)
     """
     result = False
+    result_output = ''
     qemu_version = get_qemu_version()
     if qemu_version is None:
         logging.error("Can't retrieve QEMU version!")
-        return False
+        return False, result_output
 
     qemu_x86_runner = f"qemu-system-x86_64 {'-enable-kvm ' if qemu_version < (6, 2, 0) else ''}"
     qemu_arm_runner = 'qemu-system-arm '
@@ -75,7 +76,7 @@ def test_firmware(fw_path: str, boot_drive_path: str, expected_string: str, time
                           + boot_drive_path)
     else:
         logging.error("Unsupported arch specified!")
-        return False
+        return False, result_output
 
     p.timeout = timeout
     res = p.expect([expected_string, pexpect.TIMEOUT])
@@ -89,7 +90,14 @@ def test_firmware(fw_path: str, boot_drive_path: str, expected_string: str, time
         except UnicodeDecodeError:
             error_log = p.before
         logging.error("Process output before timeout:\n %s", error_log)
-    return result
+
+    try:
+        result_output = p.before.decode()
+    except UnicodeDecodeError:
+        result_output = p.before
+    result_output = str(p.before.decode())
+    
+    return result, result_output
 
 
 def prepare_test_console(esp_path: str) -> bool:
