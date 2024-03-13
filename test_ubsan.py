@@ -10,32 +10,6 @@ import tempfile
 import shutil
 import subprocess
 
-
-# TODO: use efibuild instead this
-def build_ubsan_tester_application(build_path: str, fw_arch: str, test_groups: str, timeout: int,) -> bool:
-
-    group = " -D" + test_groups
-
-    res = subprocess.run(
-        "cd "
-        + build_path
-        + " && . ./edksetup.sh && "
-        + "build -a "
-        + fw_arch
-        + " -t CLANGDWARF -b DEBUG "
-        "-p OpenCorePkg/OpenCorePkg.dsc "
-        + "-m OpenCorePkg/Application/UbsanTester/UbsanTester.inf "
-        + group,
-        shell=True,
-        capture_output=True,
-        timeout=timeout,
-        check=True,  # if the build fails correctly, it is caught here
-    )
-    if res.returncode == 0:
-        print("OK")
-    return True
-
-
 def parse_result(result_string: str) -> bool:
     print(result_string)
 
@@ -136,17 +110,13 @@ def main():
             + "you need to select groups separated by commas from the list:"
             + "'ALIGNMENT', 'BUILTIN', 'BOUNDS', 'IMPLICIT_CONVERSION' "
             + "'INTEGER', 'NONNULL', 'POINTERS', 'UNDEFINED'"
-        )
+        ) # mb delete groups if i already give build
 
-    esp_dir = args.build_path + "/Build/OpenCorePkg/DEBUG_CLANGDWARF/X64"
+    esp_dir = args.build_path
     boot_drive = "-hda fat:rw:" + esp_dir
 
     for g in test_groups:
         print("Checking a " + g + " group ...")
-        print("Building ...")
-        build_ubsan_tester_application(
-            args.build_path, args.fw_arch, g, pexpect_timeout
-        )
 
         expected_string = "UBT: All tests are done..."
         print("Testing ...")
