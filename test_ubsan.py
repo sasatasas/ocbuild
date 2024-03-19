@@ -4,16 +4,11 @@ import argparse
 import os
 import re
 import sys
-import zipfile
 import logging
-import tempfile
-import shutil
-import subprocess
 
 def parse_result(result_string: str) -> bool:
-    print(result_string)
 
-    res = result_string.split("\r")
+    res = re.split('\r|\n', result_string)
     res = [line for line in res if line != "\n" and line != ""]
 
     group_checks = []
@@ -78,13 +73,15 @@ def main():
     parser.add_argument("fw_path", type=str, help="Path to firmware.")
     parser.add_argument("--no-rdrand", dest="rdrand", action="store_false")
     parser.add_argument("--build-path", dest="build_path", action="store")
+    parser.add_argument("--tests-dir-path", dest="tests_dir_path", action="store")
     parser.add_argument("--fw-arch", dest="fw_arch", action="store")
     parser.add_argument("--test-ubsan-group", dest="test_groups", action="store")
     parser.set_defaults(rdrand=True)
     parser.set_defaults(fw_arch="X64")
+    parser.set_defaults(tests_dir_path=os.path.dirname(os.path.realpath(__file__)))
     parser.set_defaults(test_groups="UNDEFINED")
     pexpect_timeout = 10  # default 30
-
+    
     args = parser.parse_args()
     logging.basicConfig(
         format="%(asctime)-15s [%(levelname)s] %(funcName)s: %(message)s",
@@ -110,11 +107,12 @@ def main():
             + "you need to select groups separated by commas from the list:"
             + "'ALIGNMENT', 'BUILTIN', 'BOUNDS', 'IMPLICIT_CONVERSION' "
             + "'INTEGER', 'NONNULL', 'POINTERS', 'UNDEFINED'"
-        ) # mb delete groups if i already give build
+        )
 
     esp_dir = args.build_path
     boot_drive = "-hda fat:rw:" + esp_dir
-
+    tests_dir = args.tests_dir_path
+    
     for g in test_groups:
         print("Checking a " + g + " group ...")
 
@@ -129,6 +127,10 @@ def main():
             fw_arch,
         )
         if result:
+            tests_dir+="/ubsan_tests"
+            os.makedirs(tests_dir, exist_ok=True)
+            with open(tests_dir+"/"+g.lower()+".txt", "w+") as test_file:
+                test_file.write(result_str)
             print("Parsing result ...")
             parse_res = parse_result(result_str)
             if not parse_res:
