@@ -7,7 +7,7 @@ import sys
 import logging
 
 def parse_result(result_string: str) -> bool:
-
+    print(result_string)
     res = re.split('\r|\n', result_string)
     res = [line for line in res if line != "\n" and line != ""]
 
