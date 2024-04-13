@@ -58,7 +58,8 @@ def parse_result(result_string: str) -> bool:
                         return False
 
         if "UBSan:" in line:
-            handled_errs.append(line[len("UBSan:") + 1 :])
+            line = line.split('UBSan:')
+            handled_errs += line[1:]
 
     print("OK")
 
