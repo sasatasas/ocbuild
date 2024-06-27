@@ -6,11 +6,11 @@ import re
 import sys
 import logging
 
-def parse_result(result_string: str) -> bool:
-    print(result_string)
+def parse_result(result_string: str, toolchain: str) -> bool:
+
     res = re.split('\r|\n', result_string)
     res = [line for line in res if line != "\n" and line != ""]
-
+    
     group_checks = []
     handled_errs = []
     for line in res:
@@ -21,6 +21,7 @@ def parse_result(result_string: str) -> bool:
                 group = line.split(start_of_group, 1)[1]
                 print(str(group[0:-3]) + " start ...")
                 group_checks.append(group[0:-3])
+                
             elif end_of_group[0] in line and end_of_group[1] in line:
                 group = line.split(end_of_group[0], 1)[1].split(end_of_group[1], 1)[0]
                 print(group + ": OK ...")
@@ -41,12 +42,22 @@ def parse_result(result_string: str) -> bool:
 
                 ubsan_ans = handled_errs.pop(0)
                 ubsan_ans = ubsan_ans.lower()
+                
                 ans = (
                     line[len("UBT:") + 1 :]
                     .lower()
                     .replace("[[ptr:0x[0-9a-f]*]]", "'{{.*}}'")
-                    .split("'{{.*}}'")
-                )
+                )            
+                
+                if toolchain == "CLANGPDB":
+                    ans = (
+                        ans
+                        .replace(" __attribute__((ms_abi))", "")
+                        .replace("ffffffffffffffff", "ffffffff")
+                    )
+                    
+                ans = ans.split("'{{.*}}'")
+                
                 for p in ans:
                     if p not in ubsan_ans:
                         logging.error(
@@ -76,9 +87,11 @@ def main():
     parser.add_argument("--build-path", dest="build_path", action="store")
     parser.add_argument("--tests-dir-path", dest="tests_dir_path", action="store")
     parser.add_argument("--fw-arch", dest="fw_arch", action="store")
+    parser.add_argument("--toolchain", dest="toolchain", action="store")
     parser.add_argument("--test-ubsan-group", dest="test_groups", action="store")
     parser.set_defaults(rdrand=True)
     parser.set_defaults(fw_arch="X64")
+    parser.set_defaults(toolchain="CLANGDWARF")
     parser.set_defaults(tests_dir_path=os.path.dirname(os.path.realpath(__file__)))
     parser.set_defaults(test_groups="UNDEFINED")
     pexpect_timeout = 10  # default 30
@@ -90,7 +103,7 @@ def main():
     )
 
     fw_arch = parse_fw_arch(args.fw_arch)
-
+    
     groups = {
         "ALIGNMENT",
         "BUILTIN",
@@ -113,6 +126,7 @@ def main():
     esp_dir = args.build_path
     boot_drive = "-hda fat:rw:" + esp_dir
     tests_dir = args.tests_dir_path
+    toolchain = args.toolchain
     
     for g in test_groups:
         print("Checking a " + g + " group ...")
@@ -130,10 +144,11 @@ def main():
         if result:
             tests_dir+="/ubsan_tests"
             os.makedirs(tests_dir, exist_ok=True)
+            print(tests_dir+"/"+g.lower()+".txt")
             with open(tests_dir+"/"+g.lower()+".txt", "w+") as test_file:
                 test_file.write(result_str)
             print("Parsing result ...")
-            parse_res = parse_result(result_str)
+            parse_res = parse_result(result_str, toolchain)
             if not parse_res:
                 sys.exit(1)
         else:
